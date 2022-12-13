@@ -12,12 +12,32 @@ router.get('/', async (req, res, next) => {
 
     // Phase 2A: Use query params for page & size
     // Your code here
+    let { page, size } = req.query;
 
     // Phase 2B: Calculate limit and offset
     // Phase 2B (optional): Special case to return all students (page=0, size=0)
     // Phase 2B: Add an error message to errorResult.errors of
         // 'Requires valid page and size params' when page or size is invalid
     // Your code here
+    let pagination = {};
+
+    // default values
+    if (!page) page = 1;
+    if (!size) size = 10;
+
+    // if values given and larger/equal to 1
+    if (parseInt(page) >= 1 && parseInt(size) >= 1) {
+        // create limit/offset values assigned to
+        pagination.limit = size;
+        pagination.offset = size * (page - 1);
+    // if values given and equal to 0
+    } else if (!(parseInt(page) === 0 && parseInt(size) === 0)) {
+        errorResult.errors.push({
+            message: "Requires valid page and size"
+        })
+        res.status(400);
+        return res.json(console.errorResult);
+    }
 
     // Phase 4: Student Search Filters
     /*
@@ -74,6 +94,9 @@ router.get('/', async (req, res, next) => {
         attributes: ['id', 'firstName', 'lastName', 'leftHanded'],
         where,
         // Phase 1A: Order the Students search results
+
+        order: [['lastName'], ['firstName']],
+        ...pagination
     });
 
     // Phase 2E: Include the page number as a key of page in the response data
@@ -87,6 +110,8 @@ router.get('/', async (req, res, next) => {
             }
         */
     // Your code here
+    if (page == 0 && size == 0) result.page = 1;
+    else result.page = page;
 
     // Phase 3B:
         // Include the total number of available pages for this query as a key
