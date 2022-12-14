@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import model(s)
-const { Classroom, Supply, StudentClassroom, sequelize } = require('../db/models');
+const { Classroom, Supply, StudentClassroom, Student, sequelize } = require('../db/models');
 const { Op } = require('sequelize');
 
 // List of classrooms
@@ -100,7 +100,22 @@ router.get('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
     let classroom = await Classroom.findByPk(req.params.id, {
         attributes: ['id', 'name', 'studentLimit'],
-        // include: {model: Supply}
+        include: [
+            {
+                model: Supply,
+                attributes: {
+                    exclude: ['createdAt', 'updatedAt', 'classroomId'],
+                },
+                order: [['category'], ['name']]
+            },
+            {
+                model: Student,
+                attributes: {
+                    include: ['id', 'firstName', 'lastName', 'leftHanded']
+                }
+            }
+        ]
+
 
         // Phase 7:
             // Include classroom supplies and order supplies by category then
