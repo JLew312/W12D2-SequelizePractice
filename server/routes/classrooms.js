@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import model(s)
-const { Classroom } = require('../db/models');
+const { Classroom, Supply, StudentClassroom, sequelize } = require('../db/models');
 const { Op } = require('sequelize');
 
 // List of classrooms
@@ -16,7 +16,7 @@ router.get('/', async (req, res, next) => {
             If the name query parameter exists, set the name query
                 filter to find a similar match to the name query parameter.
             For example, if name query parameter is 'Ms.', then the
-                query should match with classrooms whose name includes 'Ms.'
+                query should match with classrooms whose name includes 'Ms.
 
         studentLimit filter:
             If the studentLimit query parameter includes a comma
@@ -36,6 +36,53 @@ router.get('/', async (req, res, next) => {
     */
     const where = {};
 
+    let teacherName = req.query.name
+
+    if (teacherName) {
+        where.name = {
+            [Op.substring]: teacherName
+        }
+    }
+
+    let studentLim = req.query.studentLimit;
+
+    // console.log(typeof studentLim)
+
+    if (studentLim) {
+        const nums = studentLim.split(',');
+
+        if (nums.length === 2) {
+            if (isNaN(nums[0]) || isNaN(nums[1])) {
+                errorResult.errors.push({
+                    message: 'input must be a number'
+                })
+                res.status(400)
+                res.json(errorResult)
+            } else if (parseInt(nums[0]) > parseInt(nums[1])) {
+                errorResult.errors.push({
+                    message: 'min must be lesser than max'
+                })
+                res.status(400)
+                res.json(errorResult)
+            }
+
+            where.studentLimit = {
+                [Op.between]: [+nums[0], +nums[1]]
+            };
+        } if (nums.length === 1) {
+            if (isNaN(nums[0])) {
+                errorResult.errors.push({
+                    message: 'input must be a number'
+                })
+                res.status(400)
+                res.json(errorResult)
+            }
+
+            where.studentLimit = +nums[0];
+        }
+
+    }
+
     // Your code here
 
     const classrooms = await Classroom.findAll({
@@ -53,6 +100,8 @@ router.get('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
     let classroom = await Classroom.findByPk(req.params.id, {
         attributes: ['id', 'name', 'studentLimit'],
+        // include: {model: Supply}
+
         // Phase 7:
             // Include classroom supplies and order supplies by category then
                 // name (both in ascending order)
@@ -70,13 +119,50 @@ router.get('/:id', async (req, res, next) => {
     // Phase 5: Supply and Student counts, Overloaded classroom
         // Phase 5A: Find the number of supplies the classroom has and set it as
             // a property of supplyCount on the response
+    classroom = classroom.toJSON();
         // Phase 5B: Find the number of students in the classroom and set it as
             // a property of studentCount on the response
+    classroom.supplyCount = await Supply.count({
+        where: {classroomId: classroom.id}
+    })
         // Phase 5C: Calculate if the classroom is overloaded by comparing the
             // studentLimit of the classroom to the number of students in the
             // classroom
+    classroom.studentCount = await StudentClassroom.count({
+        where: {classroomId: classroom.id}
+    })
+
+    if (classroom.studentLimit > classroom.studentCount) {
+        classroom.overloaded = false;
+    } else {
+        classroom.overloaded = true;
+    }
         // Optional Phase 5D: Calculate the average grade of the classroom
     // Your code here
+    // classroom.gradeSum = await StudentClassroom.sum({
+    //     attributes: ['grade'],
+    //     where: {classroomId: classroom.id}
+    // })
+
+    // console.log(classroom)
+
+    // classroom.avgGrade = classroom.gradeSum / classroom.studentCount
+
+    const average = await StudentClassroom.findOne({
+        where: {classroomId: classroom.id},
+        attributes: {
+            include: [
+                [
+                    sequelize.fn("AVG", sequelize.col("grade")),
+                    "avgGrade"
+                ]
+            ],
+            exclude: ['id', 'studentId', 'classroomId', 'grade', 'createdAt', 'updatedAt']
+        },
+        raw: true
+    })
+
+    classroom.avgGrade = average.avgGrade
 
     res.json(classroom);
 });
